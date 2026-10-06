@@ -1,14 +1,14 @@
-from pathlib import Path
+import asyncio
 import sys
+from pathlib import Path
+
+import click
 
 from config.config import Config
 from config.loader import load_config
 from src.agent.agent import Agent
 from src.agent.events import AgentEventType
-import asyncio
-import click
-
-from ui.tui import TUI , get_console
+from ui.tui import TUI, get_console
 
 console = get_console()
 
@@ -31,7 +31,7 @@ class CLI:
             lines = [
                 f'model : {self.config.model_name}',
                 f'CWD : {self.config.cwd}' ,
-                f'commands : /help  /config  /approval  /model  /exit',
+                'commands : /help  /config  /approval  /model  /exit',
             ]
         )
         
@@ -45,7 +45,7 @@ class CLI:
                         continue
                     await self._process_message(user_input)
                 except KeyboardInterrupt:
-                    console.print(f"\n[dim]Use /exit to quit[/dim]")
+                    console.print("\n[dim]Use /exit to quit[/dim]")
                 except EOFError:
                     break
                 
