@@ -1,19 +1,33 @@
-from openai import AsyncOpenAI , RateLimitError , APIConnectionError , APIError
-from .response import TextDelta , TokenUsage , StreamEvent , StreamEventType, ToolCall, ToolCallDelta, parse_tool_call_arguments
-from typing import Any, AsyncGenerator
 import asyncio
+from collections.abc import AsyncGenerator
+from typing import Any
 
-## Need openrouter key
+from openai import APIConnectionError, APIError, AsyncOpenAI, RateLimitError
+
+from config.config import Config
+
+from .response import (
+    StreamEvent,
+    StreamEventType,
+    TextDelta,
+    TokenUsage,
+    ToolCall,
+    ToolCallDelta,
+    parse_tool_call_arguments,
+)
+
+
 class LLMClient:
-    def __init__(self) -> None:
+    def __init__(self , config : Config) -> None:
         self._client : AsyncOpenAI | None = None
-        self._max_retries : int = 10
-
+        self._max_retries : int = 2
+        self.config = config
+  
     def get_client(self) -> AsyncOpenAI:
         if self._client is None:
             self._client = AsyncOpenAI(
-                base_url = 'http://localhost:11434/v1',
-                api_key = 'ollama', # '<OPENROUTER_API_KEY>'
+                base_url = self.config.base_url, 
+                api_key = self.config.api_key,
             )
         return self._client
 
@@ -51,7 +65,7 @@ class LLMClient:
         client = self.get_client()
         
         kwargs = {
-            'model' : 'qwen2.5:0.5b',  ## 'mistral/devstral-2512:free'
+            'model' : self.config.model_name, 
             'messages' : messages,
             'stream' : stream
         }
@@ -60,11 +74,11 @@ class LLMClient:
             kwargs['tools'] = self._build_tools(tools)
             kwargs['tool_choice'] = 'auto'
             
-            
         for attempt in range(self._max_retries + 1):
             try:
                 if stream:
                     async for event in self._stream_response(client , kwargs):
+                        
                         yield event
                 else:
                     event = await self._non_stream_response(client , kwargs)
@@ -118,7 +132,7 @@ class LLMClient:
                     prompt_tokens = chunk.usage.prompt_tokens,
                     completion_tokens = chunk.usage.completion_tokens,
                     total_tokens = chunk.usage.total_tokens,
-                    cached_tokens = chunk.usage.prompt_tokens_details.cached_tokens,
+                    cached_tokens = chunk.usage.prompt_tokens_details.cached_tokens if chunk.usage.prompt_tokens_details else 0,
                 )
             if not chunk.choices:
                 continue
@@ -176,7 +190,7 @@ class LLMClient:
                 tool_call = ToolCall(
                     call_id = tc['id'],
                     name = tc['name'],
-                    arguments = parse_tool_call_arguments(tc['arguments']),  ## Here
+                    arguments = parse_tool_call_arguments(tc['arguments']),
                 )
             )
                 
